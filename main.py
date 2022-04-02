@@ -1,32 +1,18 @@
-import numpy as np
-from flask import Flask, session, redirect, url_for, escape, request, jsonify
-from flask_restful import Resource, Api
+from flask import jsonify
+from matplotlib import cm
 
 import hashing_helper
-from hashing_helper import *
-from werkzeug.utils import secure_filename
-import json
 from holographic import *
-import os
-import pickle
 from io import BytesIO
-from matplotlib import cm
 from os import listdir
 from os.path import isfile, join
-import random
-import string
 import base64
-from config import Config
-from PIL import Image
-from flask_cors import CORS
-import shutil
 from flask import Flask
 from flask_restful import Api, Resource, request
 from config import Config
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import os
-
 
 app = Flask(__name__)
 app.secret_key = 'super_useful_key'
@@ -36,10 +22,12 @@ CORS(app)
 
 api = Api(app)
 
+
 class list_image(Resource):
     def get(self):
-        fichiers = [f for f in listdir('server_descriptor') if isfile(join('server_descriptor', f))]
-        return jsonify({'name_picture': fichiers})
+        fichiers = [f for f in listdir('stockage/zeros') if isfile(join('stockage/zeros', f))]
+        return jsonify(fichiers)
+
 
 class file_upload(Resource):
     def post(self):
@@ -49,43 +37,30 @@ class file_upload(Resource):
         filename = filename[:index]
         json_path = os.path.join('temp', 'temp.json')
         FaceReconHelper = FaceReconHelperClassBuilder(json_path)
-        FaceReconHelper.GenerateDescriptor(image_path=file)
-        #salt1, descriptor_hash, user_descriptor, salt2, user_descriptor_hash, server_descriptor = split_and_hash_descriptor(unknown_descriptor)
-
-        # user_descriptor, server_descriptor = a
-        # myFile = open("user_descriptor/" + filename, "wb+")
-        # myFile.write(user_descriptor)
-        # myFile.close()
-        # myFile2 = open("server_descriptor/" + filename, "wb+")
-        # myFile2.write(server_descriptor)
-        # myFile2.close()
-        # # Test uniquement, permet d'avoir un résultat rapide
-        # #self.reombineTest(user_descriptor, server_descriptor)
-        # user_descriptor = eval(user_descriptor.decode())
-        # server_descriptor = eval(server_descriptor.decode())
+        FaceReconHelper.GenerateDescriptor(filename, image_path=file)
         # # le user descriptor sera soit envoyé sur le client soit sur un deuxième serveur
         # return jsonify({"user_descriptor": str(user_descriptor)})
 
     def hash(unknown_descriptor):
-        print('i')
         salt1, descriptor_hash, user_descriptor, salt2, user_descriptor_hash, server_descriptor = hashing_helper.split_and_hash_descriptor(
             unknown_descriptor)
-        a = server_descriptor, user_descriptor
-        return a
-
-
-
-    # Test uniquement, permet d'avoir un résultat rapide
-    def reombineTest(self, user_descriptor, server_descriptor):
-        DescriptorRec = RecombineDescriptors(user_descriptor, server_descriptor)
-        # transformation du DescriptorRec en image PNG
-        im = Image.fromarray(np.uint8(cm.gist_earth(DescriptorRec) * 255))
-        im.show()
+        b = server_descriptor, user_descriptor
+        return b
 
 class recombine(Resource):
+    def recombineTest(filename, server_descriptor, user_descriptor):
+        Descriptor = []
+        for i in range(len(user_descriptor)):
+            Descriptor = Descriptor + (
+                hashing_helper.RecombineDescriptors(user_descriptor[i], server_descriptor[i])).tolist()
+        myFileA = open("stockage/zeros/" + filename, "r")
+        a = int(myFileA.read())
+        myFileA.close()
+        return recombine.suppr0(Descriptor, a)
 
-    def suppr0(self, lst, nbr0):
-        '''supprime les zeros en trop'''
+    @staticmethod
+    def suppr0(lst, nbr0):
+        """supprime les zeros en trop"""
         a = len(lst) - 1
         while nbr0 > 0:
             lst.pop(a)
@@ -93,12 +68,19 @@ class recombine(Resource):
             nbr0 = nbr0 - 1
         return lst
 
-    def recombine_RGB(self, lstr, lstg, lstb, nbr0):
-        '''recombine les 3 canaux de l'image et enlève les 0'''
-        self.suppr0(lstr, nbr0)
-        self.suppr0(lstg, nbr0)
-        self.suppr0(lstb, nbr0)
+    def arrondi(lst):
+        for i in range(len(lst)):
+            if lst[i] < 0:
+                lst[i] = 0
+            if lst[i] > 255:
+                lst[i] = 255
+        return lst
 
+    def recombine_RGB(filename, lstr, lstg, lstb):
+        """recombine les 3 canaux de l'image"""
+        myFileA = open("stockage/shape/" + 's' + filename, "r")
+        b = eval(myFileA.read())
+        myFileA.close()
         a = len(lstr) - 1
         lstrgb = []
         while a > -1:
@@ -107,37 +89,48 @@ class recombine(Resource):
             lstrgb.append(lstr[a])
             a = a - 1
         lstrgb.reverse()
+        lstrgb = np.multiply(lstrgb, 255)
+        lstrgb = [int(round(num, 0)) for num in lstrgb]
+        lstrgb = recombine.arrondi(lstrgb)
+        lstrgb = np.array(lstrgb).reshape(b)
+        lstrgb = lstrgb.astype(np.uint8)
         return lstrgb
 
-    def post(self):
-        filename1 = request.form.get('filename')
-        # création du dossier contenant le json
-        folder = 'temp'
-        json_path = os.path.join(folder, 'temp.json')
-        FaceReconHelper = FaceReconHelperClassBuilder(json_path)
-
-        # préparation des descriptors à la recombinaison
-        user_descriptor1 = open("user_descriptor/" + filename1, 'rb')
-        server_descriptor1 = open("server_descriptor/" + filename1, 'rb')
-        user_descriptor1 = user_descriptor1.read()
-        server_descriptor1 = server_descriptor1.read()
-        user_descriptor1 = eval(user_descriptor1.decode())
-        server_descriptor1 = eval(server_descriptor1.decode())
-
-        # recombinaison
-        DescriptorRec = RecombineDescriptors(user_descriptor1, server_descriptor1)
-        FaceReconHelper.LoadKnownDescriptor(DescriptorRec)
-
-        # transformation du DescriptorRec en image PNG
-        im = Image.fromarray(np.uint8(cm.gist_earth(DescriptorRec) * 255))
-        # im.show()
-
+    @staticmethod
+    def post():
+        filename = request.form.get('filename')
+        myFileR = open("stockage/user_descriptor/" + 'R' + filename, "r")
+        user_descriptor = eval(myFileR.read())
+        myFileR.close()
+        myFile1R = open("stockage/server_descriptor/" + 'R' + filename, "r")
+        server_descriptor = eval(myFile1R.read())
+        myFile1R.close()
+        r = recombine.recombineTest(filename, user_descriptor, server_descriptor)
+        myFileG = open("stockage/user_descriptor/" + 'G' + filename, "r")
+        user_descriptor = eval(myFileG.read())
+        myFileG.close()
+        myFile1G = open("stockage/server_descriptor/" + 'G' + filename, "r")
+        server_descriptor = eval(myFile1G.read())
+        myFile1G.close()
+        g = recombine.recombineTest(filename, user_descriptor, server_descriptor)
+        myFileB = open("stockage/user_descriptor/" + 'B' + filename, "r")
+        user_descriptor = eval(myFileB.read())
+        myFileB.close()
+        myFile1B = open("stockage/server_descriptor/" + 'B' + filename, "r")
+        server_descriptor = eval(myFile1B.read())
+        myFile1B.close()
+        b = recombine.recombineTest(filename, user_descriptor, server_descriptor)
+        im = recombine.recombine_RGB(filename, r, g, b)
+        print(im)
+        image = Image.fromarray(im)
+        image.show()
+        image = im.astype(np.uint8)
         # convert picture to base64
-        buffered = BytesIO()
-        im.save(buffered, format="JPEG")
-        img_str = base64.b64encode(buffered.getvalue())
-        base_image = "data:image/jpeg;base64," + img_str.decode()
-        return jsonify('test', base_image)
+        img_str = base64.b64encode(image)
+        base_image = img_str.decode()
+        #base_image = 'iVBORw0KGgoAAAANSUhEUgAAAAoAAAAQCAYAAAAvf+5AAAAAAXNSR0IB2cksfwAAAiFJREFUKJElyDtME3EAwOFf767Xu9Jrr/Vq+hAiRBcGEtFBNiVRB42TTk7E6OaumxthMS5OxrgYddEJNcb4AjVIkGq18ioJIG21xV5LW9rr4/4OfuPneTf9QGS+rXA40mCfpbFaDrDf1JA0E58io6gamq6jxA4kUP6mKKZvodeDVBsX0GoWsX6dbLmOvzaH6k8iyV4fZsQinBzF8Yxj6mG25tLYqQxDyUEGzD/YlV0kjxC06xVMU2alEWO3UMJRIJNdx90r03QCDAwlkXpuD0ns0W6rvMgn2Gn00bX/oAUibORybFa9DMQNJEXyYPjabJXjTNte2oEAO3aJotdi8nuQ+c1+3I6DZFcqPJ9d4tViAZ7ew5FdEqcv0TT6aDhdMmWDQkVFSS9luXZ7BrQEdPNM3nnE9YkTNGsV1HSJmk+n5Z5HEb0eACODOum1CDTzZJe+Iik6dqnAWjHPz1/jyMNx/80PiyuoikLY08HnN6hWCmzndsl1NEYCGrKuoyidOgDNnuDi6CFC8X6a1kFmZj9CaoHo0WMsL6RQLCsGgCpcZpe3CW0XOXJqiEjk/7/+sgCA58ndKTH18CXzb99AKArVEgBjYycxNJXVcpczwxpSeHAYH10Akn6ZsBEGwBUu6z9SHB8/y+WrV+DT5/cCENAnzFBQgEcYAVPIslcA4tzEDbGxmRVSzbYBMK0grWYLSVJpOQ7RaJSgpvPs/mN2Sr/5B1sd5FBeG/M6AAAAAElFTkSuQmCC'
+        return jsonify(base_image)
+
 
 api.add_resource(list_image, "/api/list_image")
 api.add_resource(recombine, '/api/recombine')

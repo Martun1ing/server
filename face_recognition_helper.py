@@ -1,10 +1,10 @@
 import os
 import json
-
+from PIL import Image
 import PIL.Image
 import numpy as np
 
-from main import file_upload
+from main import file_upload, recombine
 
 
 class FaceReconHelperClassBuilder:
@@ -15,31 +15,14 @@ class FaceReconHelperClassBuilder:
             with open(self.json_path, 'w+') as file:
                 json.dump(data, file)
 
-    def tri4(self, lst):
-        '''divise une liste en liste de b élément'''
-        a = len(lst)
-        # nombre d'élément dans les listes
-        b = 128
-        lst_dec = []
-        while a > 0:
-            lst_dec.append(lst[a - b:a])
-            a = a - b
-        lst_dec.reverse()
-        return lst_dec
-
-    def zero_add(self, lst, a):
-        '''transforme la liste pour que sa longueur soit un multiple de 128'''
-        b = a
-        lst0 = lst
-        while a > 0:
-            lst0.append(0)
-            a = a - 1
-        return lst0
-
-    def GenerateDescriptor(self, image_path='image.jpg'):
+    def GenerateDescriptor(self, filename, image_path='image.jpg'):
         im = PIL.Image.open(image_path)
+        im = im.convert('RGB')
         image = np.array(im)
-        # image = [[[1, 2, 3], [4, 5, 6]], [[7, 8, 9], [10, 11, 12]]]
+        b = image.shape
+        myFileA = open("stockage/shape/" + 's' + filename, "w+")
+        myFileA.write(str(b))
+        myFileA.close()
         e = 0
         descriptor_R2 = []
         descriptor_G2 = []
@@ -47,7 +30,6 @@ class FaceReconHelperClassBuilder:
         descriptor_R = []
         descriptor_G = []
         descriptor_B = []
-
         for f in image:
             e += 1
             red = []
@@ -67,35 +49,88 @@ class FaceReconHelperClassBuilder:
         descriptor_R2 = descriptor_R2 + descriptor_R
         descriptor_G2 = descriptor_G2 + descriptor_G
         descriptor_B2 = descriptor_B2 + descriptor_B
-        a = int(128-((len(descriptor_R2)/128 - int(len(descriptor_R2)/128))*128))
+        a = int(128 - ((len(descriptor_R2) / 128 - int(len(descriptor_R2) / 128)) * 128))
+        myFileA = open("stockage/zeros/" + filename, "w+")
+        myFileA.write(str(a))
+        myFileA.close()
         descriptor_R2 = self.zero_add(descriptor_R2, a)
+        descriptor_R2 = np.divide(descriptor_R2, 256)
         descriptor_G2 = self.zero_add(descriptor_G2, a)
+        descriptor_G2 = np.divide(descriptor_G2, 256)
         descriptor_B2 = self.zero_add(descriptor_B2, a)
+        descriptor_B2 = np.divide(descriptor_B2, 256)
         descriptor_R2 = self.tri4(descriptor_R2)
         descriptor_G2 = self.tri4(descriptor_G2)
         descriptor_B2 = self.tri4(descriptor_B2)
-        print(len(descriptor_B2))
-        x = []
-        y = []
-        for unknown_descriptor in descriptor_B2:
-            server_descriptor, user_descriptor = file_upload.hash(unknown_descriptor)
-            x = x + server_descriptor
-            y = y + server_descriptor
+        xR = []
+        yR = []
+        xG = []
+        yG = []
+        xB = []
+        yB = []
 
-        # for unknown_descriptor in descriptor_G2:
-        #     file_upload.hash(unknown_descriptor)
-        # for unknown_descriptor in descriptor_R2:
-        #     file_upload.hash(unknown_descriptor)
-        print('OOO?IGH')
-        myFile4 = open("user_descriptor/" + 'user_descriptor', "wb+")
-        myFile4.write(str(user_descriptor).encode())
-        myFile4.close()
-        myFile5 = open("descriptor_RGB2/" + 'descriptor_G2', "wb+")
-        myFile5.write(str(descriptor_G2).encode())
-        myFile5.close()
-        myFile6 = open("descriptor_RGB2/" + 'descriptor_B2', "wb+")
-        myFile6.write(str(descriptor_B2).encode())
-        myFile6.close()
+        print('Wait...')
+        for unknown_descriptor in descriptor_R2:
+            server_descriptor_R, user_descriptor_R = file_upload.hash(unknown_descriptor)
+            xR.append(eval(server_descriptor_R))
+            yR.append(eval(user_descriptor_R))
+        print('R')
+        # r = recombine.recombineTest(filename, xR, yR)
+        for unknown_descriptor in descriptor_G2:
+            server_descriptor_G, user_descriptor_G = file_upload.hash(unknown_descriptor)
+            xG.append(eval(server_descriptor_G))
+            yG.append(eval(user_descriptor_G))
+        print('G')
+        #g = recombine.recombineTest(filename, xG, yG)
+        for unknown_descriptor in descriptor_B2:
+            server_descriptor_B, user_descriptor_B = file_upload.hash(unknown_descriptor)
+            xB.append(eval(server_descriptor_B))
+            yB.append(eval(user_descriptor_B))
+        print('B')
+        # b = recombine.recombineTest(filename, xB, yB)
+        # recombine.recombine_RGB(filename, r, g, b)
+        myFileR = open("stockage/user_descriptor/" + 'R' + filename, "w+")
+        myFileR.write(str(xR))
+        myFileR.close()
+        myFile1R = open("stockage/server_descriptor/" + 'R' + filename, "w+")
+        myFile1R.write(str(yR))
+        myFile1R.close()
+
+        myFileG = open("stockage/user_descriptor/" + 'G' + filename, "w+")
+        myFileG.write(str(xG))
+        myFileG.close()
+        myFile1G = open("stockage/server_descriptor/" + 'G' + filename, "w+")
+        myFile1G.write(str(yG))
+        myFile1G.close()
+
+        myFileB = open("stockage/user_descriptor/" + 'B' + filename, "w+")
+        myFileB.write(str(xB))
+        myFileB.close()
+        myFile1B = open("stockage/server_descriptor/" + 'B' + filename, "w+")
+        myFile1B.write(str(yB))
+        myFile1B.close()
+
+    @staticmethod
+    def zero_add(lst, a):
+        """transforme la liste pour que sa longueur soit un multiple de 128"""
+        lst0 = lst
+        while a > 0:
+            lst0.append(0)
+            a = a - 1
+        return lst0
+
+    @staticmethod
+    def tri4(lst):
+        """divise une liste en liste de b élément"""
+        a = len(lst)
+        # nombre d'élément dans les listes
+        b = 128
+        lst_dec = []
+        while a > 0:
+            lst_dec.append(lst[a - b:a])
+            a = a - b
+        lst_dec.reverse()
+        return lst_dec
 
     def load_json_file(self):
         with open(self.json_path, 'r') as file:

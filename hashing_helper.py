@@ -15,7 +15,7 @@ def split_and_hash_descriptor(descriptor):
     # splitting with the holographic encoding and decoding
     HolographicEncryptionClass = HolographicEncryptionClassBuilder()
     HolographicEncryptionClass.read_descriptor(descriptor)
-    AbsMask_flat, PhMask_flat = HolographicEncryptionClass.find_optimal_encoding(iteration_num=5000, number_of_runs=10)
+    AbsMask_flat, PhMask_flat = HolographicEncryptionClass.find_optimal_encoding(iteration_num=1000, number_of_runs=10)
     
     server_descriptor = str(AbsMask_flat.tolist()).encode()
     user_descriptor = str(PhMask_flat.tolist()).encode()

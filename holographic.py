@@ -76,13 +76,13 @@ class HolographicEncryptionClassBuilder():
 
         return DescriptorRec
     
-    def find_optimal_encoding(self, iteration_num=500, number_of_runs=10):
+    def find_optimal_encoding(self, iteration_num=10, number_of_runs=10):
         ''' iteration_num determines the theoretical minimal dist, number_of_runs increases chances of finding it '''
         AbsMask_flat_list = []
         PhMask_flat_list = []
         euclidean_dist_list = []
         for i in range(number_of_runs):
-            AbsMask_flat, PhMask_flat = self.encoding(Target=self.Target, iteration_num=500)
+            AbsMask_flat, PhMask_flat = self.encoding(Target=self.Target, iteration_num=100)
             DescriptorRec = self.decoding(AbsMask_flat, PhMask_flat)
 
             AbsMask_flat_list.append(AbsMask_flat)
